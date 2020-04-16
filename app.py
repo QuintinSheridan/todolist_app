@@ -1,6 +1,7 @@
 import os
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 
 # get secrets stored as local bash environment variables
 # In bash, define variebles eg.: ~$ USERNAME='user1'
@@ -8,14 +9,16 @@ from flask_sqlalchemy import SQLAlchemy
 
 user = os.environ['USERNAME']
 pword = os.environ['PW']
-db = os.environ['DB']
+db_name = os.environ['DB']
 
 #print(f'user: {user}, pword: {pword}, db:{db}')
 
 app = Flask(__name__)
-sqlurl = f'postgres://{user}:{pword}@localhost:5432/{db}'
+sqlurl = f'postgres://{user}:{pword}@localhost:5432/{db_name}'
 app.config['SQLALCHEMY_DATABASE_URI'] = sqlurl
 db = SQLAlchemy(app)
+
+migrate = Migrate(app, db)
 
 class Todo(db.Model):
   __tablename__ = 'todos'
@@ -25,7 +28,8 @@ class Todo(db.Model):
   def __repr__(self):
     return f'<Todo {self.id} {self.description}>'
 
-db.create_all()
+# migrations will be sued for updating the db
+#db.create_all()
 
 @app.route('/todos/create', methods=['POST'])
 def create_todo():
