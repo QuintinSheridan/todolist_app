@@ -36,16 +36,21 @@ class Todo(db.Model):
 @app.route('/todos/create', methods=['POST'])
 def create_todo():
   body={}
+  error = False
   try:
     description = request.get_json()['description']
+    print(f'description: {description}')
     todo = Todo(description=description)
+    print('Todo object created')
     db.session.add(todo)
+    print('Todo object added to session')
     db.session.commit()
+    print('session committed')
     body['description'] = todo.description
   except:
     error = True
     db.session.rollback()
-    print(sys.exec_info())
+    print(sys.exc_info())
   finally:
     db.session.close()
   if not error:
@@ -67,6 +72,22 @@ def update_completed(todo_id):
   finally:
     db.session.close()
   return redirect(url_for('index'))
+
+@app.route('/todos/<todo_id>/delete', methods=['POST'])
+def delete(todo_id):
+  print(f'Deleting Todo {todo_id}')
+  try:
+    todo = Todo.query.get(todo_id)
+    db.session.delete(todo)
+    db.session.commit()
+  except:
+    db.session.rollback()
+  finally:
+    db.session.close()
+  return redirect(url_for('index'))
+
+  
+  
 
 @app.route('/')
 def index():
