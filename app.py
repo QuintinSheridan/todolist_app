@@ -1,8 +1,9 @@
 import os
 import sys
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+
 
 # get secrets stored as local bash environment variables
 # In bash, define variebles eg.: ~$ USERNAME='user1'
@@ -18,34 +19,55 @@ app = Flask(__name__)
 sqlurl = f'postgres://{user}:{pword}@localhost:5432/{db_name}'
 app.config['SQLALCHEMY_DATABASE_URI'] = sqlurl
 db = SQLAlchemy(app)
-
 migrate = Migrate(app, db)
+
+class TodoList(db.Model):
+  __tablename__ = 'todolists'
+  id = db.Column(db.Integer, primary_key=True)
+  name = db.Column(db.String(), nullable=False)
+  todos = db.relationship('Todo', backref='list', lazy=True)
+
 
 class Todo(db.Model):
   __tablename__ = 'todos'
   id = db.Column(db.Integer, primary_key=True)
   description = db.Column(db.String(), nullable=False)
-  completed = db.Column(db.Boolean, nullable=False, default=False)
+  completed = db.Column(db.Boolean, nullable=False)
+  list_id = db.Column(db.Integer, db.ForeignKey('todolists.id'), nullable=False)
 
   def __repr__(self):
     return f'<Todo {self.id} {self.description}>'
 
-# migrations will be sued for updating the db
-#db.create_all()
+  
 
-@app.route('/todos/create', methods=['POST'])
-def create_todo():
-  body={}
-  error = False
+@app.route('/todos/<todo_id>', methods=['DELETE'])
+def delete_todo(todo_id):
   try:
-    description = request.get_json()['description']
-    print(f'description: {description}')
-    todo = Todo(description=description)
-    print('Todo object created')
-    db.session.add(todo)
-    print('Todo object added to session')
+    Todo.query.filter_by(id=todo_id).delete()
     db.session.commit()
-    print('session committed')
+  except:
+    db.session.rollback()
+  finally:
+    db.session.close()
+  return jsonify({ 'success': True })
+
+# note: more conventionally, we would write a
+# POST endpoint to /todos for the create endpoint:
+# @app.route('/todos', method=['POST'])
+@app.route('/todos/<list_id>/create', methods=['POST'])
+def create_todo(list_id):
+  print(f'Creating todo for list {list_id}')
+  error = False
+  body = {}
+  try:
+    print('hello')
+    description = request.get_json()['description']
+    print('bob')
+    todo = Todo(description=description, completed=False, list_id=list_id)
+    db.session.add(todo)
+    db.session.commit()
+    body['id'] = todo.id
+    body['completed'] = todo.completed
     body['description'] = todo.description
   except:
     error = True
@@ -53,18 +75,42 @@ def create_todo():
     print(sys.exc_info())
   finally:
     db.session.close()
-  if not error:
+  if error:
+    abort (400)
+  else:
+    return jsonify(body)
+
+@app.route('/lists/create', methods=['POST'])
+def create_list():
+  print('Tyring to make a list')
+  error = False
+  body = {}
+  try:
+    print('hello')
+    name = request.get_json()['name']
+    print('bob')
+    todo_list = TodoList(name=name)
+    db.session.add(todo_list)
+    db.session.commit()
+    body['id'] = todo_list.id
+    body['name'] = todo_list.name
+  except:
+    error = True
+    db.session.rollback()
+    print(sys.exc_info())
+  finally:
+    db.session.close()
+  if error:
+    abort (400)
+  else:
     return jsonify(body)
 
 @app.route('/todos/<todo_id>/set-completed', methods=['POST'])
-def update_completed(todo_id):
-  print(f'todo_id: {todo_id}')
+def set_completed_todo(todo_id):
   try:
-    print('trying to get completed')
     completed = request.get_json()['completed']
-    print(f'completed: {completed}')
+    print('completed', completed)
     todo = Todo.query.get(todo_id)
-    print(f'todo.completed: {todo.completed}')
     todo.completed = completed
     db.session.commit()
   except:
@@ -73,22 +119,16 @@ def update_completed(todo_id):
     db.session.close()
   return redirect(url_for('index'))
 
-@app.route('/todos/<todo_id>/delete', methods=['POST'])
-def delete(todo_id):
-  print(f'Deleting Todo {todo_id}')
-  try:
-    todo = Todo.query.get(todo_id)
-    db.session.delete(todo)
-    db.session.commit()
-  except:
-    db.session.rollback()
-  finally:
-    db.session.close()
-  return redirect(url_for('index'))
-
-  
-  
+@app.route('/lists/<list_id>')
+def get_list_todos(list_id):
+  lists = TodoList.query.all()
+  active_list_name =  TodoList.query.get(list_id).name
+  active_list_id = list_id
+  for list in lists:
+    print(f'list name {list.name}')
+  todos = Todo.query.filter_by(list_id=list_id).order_by(Todo.id)
+  return render_template('index.html', todos=todos, lists=lists, active_list_name=active_list_name, active_list_id = active_list_id)
 
 @app.route('/')
 def index():
-  return render_template('index.html', data=Todo.query.order_by('id').all())
+  return redirect('/lists/1')
