@@ -21,10 +21,15 @@ app.config['SQLALCHEMY_DATABASE_URI'] = sqlurl
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
+#############
+# DB MODELS #
+#############
+
 class TodoList(db.Model):
   __tablename__ = 'todolists'
   id = db.Column(db.Integer, primary_key=True)
   name = db.Column(db.String(), nullable=False)
+  completed = db.Column(db.Boolean, nullable=False)
   todos = db.relationship('Todo', backref='list', lazy=True)
 
 
@@ -38,8 +43,10 @@ class Todo(db.Model):
   def __repr__(self):
     return f'<Todo {self.id} {self.description}>'
 
+##################
+# Route Handlers #
+##################
   
-
 @app.route('/todos/<todo_id>', methods=['DELETE'])
 def delete_todo(todo_id):
   try:
@@ -50,6 +57,51 @@ def delete_todo(todo_id):
   finally:
     db.session.close()
   return jsonify({ 'success': True })
+
+# list creation
+@app.route('/lists/create', methods=['POST'])
+def create_list():
+  print('Tyring to make a list')
+  error = False
+  body = {}
+  try:
+    print('hello')
+    name = request.get_json()['name']
+    print('bob')
+    todo_list = TodoList(name=name)
+    db.session.add(todo_list)
+    db.session.commit()
+    body['id'] = todo_list.id
+    body['name'] = todo_list.name
+  except:
+    error = True
+    db.session.rollback()
+    print(sys.exc_info())
+  finally:
+    db.session.close()
+  if error:
+    abort (400)
+  else:
+    return jsonify(body)
+
+# list completion
+@app.route('/lists/<list_id>/set-completed', methods=['POST'])
+def set_completed_list(list_id):
+  try:
+    completed = request.get_json()['completed']
+    print('completed', completed)
+    todo_list = TodoList.query.get(list_id)
+    todo_list.completed = completed
+    list_todos = todo_list.todos
+    for todo in list_todos:
+      todo.completed= completed
+    print(f'list_todos: {list_todos}')
+    db.session.commit()
+  except:
+    db.session.rollback()
+  finally:
+    db.session.close()
+  return redirect(url_for('index'))
 
 # note: more conventionally, we would write a
 # POST endpoint to /todos for the create endpoint:
@@ -80,31 +132,6 @@ def create_todo(list_id):
   else:
     return jsonify(body)
 
-@app.route('/lists/create', methods=['POST'])
-def create_list():
-  print('Tyring to make a list')
-  error = False
-  body = {}
-  try:
-    print('hello')
-    name = request.get_json()['name']
-    print('bob')
-    todo_list = TodoList(name=name)
-    db.session.add(todo_list)
-    db.session.commit()
-    body['id'] = todo_list.id
-    body['name'] = todo_list.name
-  except:
-    error = True
-    db.session.rollback()
-    print(sys.exc_info())
-  finally:
-    db.session.close()
-  if error:
-    abort (400)
-  else:
-    return jsonify(body)
-
 @app.route('/todos/<todo_id>/set-completed', methods=['POST'])
 def set_completed_todo(todo_id):
   try:
@@ -121,7 +148,7 @@ def set_completed_todo(todo_id):
 
 @app.route('/lists/<list_id>')
 def get_list_todos(list_id):
-  lists = TodoList.query.all()
+  lists = TodoList.query.order_by(TodoList.id)
   active_list_name =  TodoList.query.get(list_id).name
   active_list_id = list_id
   for list in lists:
