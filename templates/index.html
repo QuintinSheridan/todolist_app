@@ -53,16 +53,19 @@
         <input type="text" id="list-name" name="list-name" />
         <input type="submit" value="Create" />
       </form>
-        <ul id="lists">
-          {% for list in lists %}
-          <li> 
-            <input class="list-check-completed" data-id="{{ list.id }}" type="checkbox" 
-            {% if list.completed %} checked {% endif %} />
-            <a href="/lists/{{ list.id }}">{{ list.name }}</a> 
-            <button class="list-delete-button" data-id="{{ list.id }}">&cross;</button>
-          </li>
-          {% endfor %}
-        </ul>
+          <ul id="lists">
+            <li>Todo Lists</li>
+            {% if lists %}
+              {% for list in lists %}
+              <li> 
+                <input class="list-check-completed" data-id="{{ list.id }}" type="checkbox" 
+                {% if list.completed %} checked {% endif %} />
+                <a href="/lists/{{ list.id }}">{{ list.name }}</a> 
+                <a href="/lists/delete/{{list.id}}"><button class="list-delete-button" data-id="{{ list.id }}">&cross;</button></a>
+              </li>
+              {% endfor %}
+            {% endif %}
+          </ul>
     </div>
 
     <div class="todos-wrapper">
@@ -72,17 +75,19 @@
         <input type="text" id="todo-description" name="todo-description" />
         <input type="submit" value="Create" />
       </form>
-
-      <ul id="todos">
-        {% for todo in todos %}
-        <li>
-          <input class="todo-check-completed" data-id="{{ todo.id }}" type="checkbox" 
-          {% if todo.completed %} checked {% endif %} />
-          {{ todo.description }}
-          <button class="todo-delete-button" data-id="{{ todo.id }}">&cross;</button>
-        </li>
-        {% endfor %}
-      </ul>
+        <ul id="todos">
+          <li>Todo Items</li>
+        {% if todos %}
+          {% for todo in todos %}
+          <li>
+            <input class="todo-check-completed" data-id="{{ todo.id }}" type="checkbox" 
+            {% if todo.completed %} checked {% endif %} />
+            {{ todo.description }}
+            <button class="todo-delete-button" data-id="{{ todo.id }}">&cross;</button>
+          </li>
+          {% endfor %}
+        {% endif %}
+        </ul>
     </div>
 
 
@@ -144,6 +149,20 @@
         }
       }
       //list delete
+      // const listDeleteBtns = document.querySelectorAll('.list-delete-button');
+      // for (let i = 0; i < listDeleteBtns.length; i++) {
+      //   const listBtn = listDeleteBtns[i];
+      //   listBtn.onclick = function(e) {
+      //     const listId = e.target.dataset['id'];
+      //     fetch('/lists/delete/' + listId, {
+      //       method: 'DELETE'
+      //     })
+      //         .then(function() {
+      //           const item = e.target.parentElement;
+      //           item.remove();
+      //     })
+      //   }
+      // }
 
       /// stuff for todos
       //to form

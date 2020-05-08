@@ -30,7 +30,7 @@ class TodoList(db.Model):
   id = db.Column(db.Integer, primary_key=True)
   name = db.Column(db.String(), nullable=False)
   completed = db.Column(db.Boolean, nullable=False)
-  todos = db.relationship('Todo', backref='list', lazy=True)
+  todos = db.relationship('Todo', cascade="all,delete", backref='list', lazy=True)
 
 
 class Todo(db.Model):
@@ -38,7 +38,7 @@ class Todo(db.Model):
   id = db.Column(db.Integer, primary_key=True)
   description = db.Column(db.String(), nullable=False)
   completed = db.Column(db.Boolean, nullable=False)
-  list_id = db.Column(db.Integer, db.ForeignKey('todolists.id'), nullable=False)
+  list_id = db.Column(db.Integer, db.ForeignKey('todolists.id', ondelete='CASCADE'), nullable=False)
 
   def __repr__(self):
     return f'<Todo {self.id} {self.description}>'
@@ -46,17 +46,6 @@ class Todo(db.Model):
 ##################
 # Route Handlers #
 ##################
-  
-@app.route('/todos/<todo_id>', methods=['DELETE'])
-def delete_todo(todo_id):
-  try:
-    Todo.query.filter_by(id=todo_id).delete()
-    db.session.commit()
-  except:
-    db.session.rollback()
-  finally:
-    db.session.close()
-  return jsonify({ 'success': True })
 
 # list creation
 @app.route('/lists/create', methods=['POST'])
@@ -68,7 +57,7 @@ def create_list():
     print('hello')
     name = request.get_json()['name']
     print('bob')
-    todo_list = TodoList(name=name)
+    todo_list = TodoList(name=name, completed=False)
     db.session.add(todo_list)
     db.session.commit()
     body['id'] = todo_list.id
@@ -102,6 +91,46 @@ def set_completed_list(list_id):
   finally:
     db.session.close()
   return redirect(url_for('index'))
+
+
+# list deletion
+# @app.route('/lists/<list_id>', methods=['DELETE'])
+# def delete_list(list_id):
+#   print('Trying to delete a list')
+#   try:
+#     TodoList.query.filter_by(id=list_id).delete()
+#     db.session.commit()
+#   except Exception as e:
+#     print(f'The following exception occured while deleting a list: {e}')
+#     db.session.rollback()
+#   finally:
+
+#     db.session.close()
+#   return jsonify({ 'success': True })
+
+#list deletion
+@app.route('/lists/delete/<list_id>', methods=['GET', 'DELETE'])
+def delete_list(list_id):
+  print(f'\n\n\n Trying to delete list_id {list_id}')
+  try:
+    TodoList.query.filter_by(id=list_id).delete()
+    db.session.commit()
+  except Exception as e:
+    print(f'The following exception occured while deleting a list: {e}')
+    db.session.rollback()
+  finally:
+    db.session.close()
+    lists = TodoList.query.order_by(TodoList.id).all()
+    print(f'\n\n\n after deletion lists: {lists}')
+
+  lists = TodoList.query.order_by(TodoList.id).all()
+  print(f'\n\n\n lists: {lists}')
+  if lists:
+    first_list = lists[0].id
+    print(first_list)
+    return redirect(f'/lists/{first_list}')
+  else:
+    return render_template('index.html', todos=None, lists=None, active_list_name=None, active_list_id = None)
 
 # note: more conventionally, we would write a
 # POST endpoint to /todos for the create endpoint:
@@ -146,16 +175,56 @@ def set_completed_todo(todo_id):
     db.session.close()
   return redirect(url_for('index'))
 
+@app.route('/todos/<todo_id>', methods=['DELETE'])
+def delete_todo(todo_id):
+  try:
+    Todo.query.filter_by(id=todo_id).delete()
+    db.session.commit()
+  except:
+    db.session.rollback()
+  finally:
+    db.session.close()
+  return jsonify({ 'success': True })
+
+
+# @app.route('/lists/<list_id>')
+# def get_list_todos(list_id):
+#   lists = TodoList.query.order_by(TodoList.id).all()
+#   list_exists=False
+#   print(f'list_id: {list_id}')
+#   for todolist in lists:
+#     print(f'list.id {todolist.id}')
+#     if todolist.id == list_id:
+#       list_exists = True
+#   if list_exists:
+#     active_list_name =  TodoList.query.get(list_id).name
+#     active_list_id = list_id
+#     for todolist in lists:
+#       print(f'list name {todolist.name}')
+#       todos = Todo.query.filter_by(list_id=list_id).order_by(Todo.id)
+#   else:
+#     active_list_name =  None
+#     active_list_id = None
+#     todos=None
+#     print(f'todos={todos}, lists={lists}, active_list_name={active_list_name}, active_list_id={active_list_id}')
+#   return render_template('index.html', todos=todos, lists=lists, active_list_name=active_list_name, active_list_id = active_list_id)
+
 @app.route('/lists/<list_id>')
 def get_list_todos(list_id):
-  lists = TodoList.query.order_by(TodoList.id)
+  print(f'Getting todos for list {list_id}')
+  lists = TodoList.query.order_by(TodoList.id).all()
   active_list_name =  TodoList.query.get(list_id).name
   active_list_id = list_id
-  for list in lists:
-    print(f'list name {list.name}')
   todos = Todo.query.filter_by(list_id=list_id).order_by(Todo.id)
+  print(f'todos={todos}, lists={lists}, active_list_name={active_list_name}, active_list_id={active_list_id}')
   return render_template('index.html', todos=todos, lists=lists, active_list_name=active_list_name, active_list_id = active_list_id)
 
 @app.route('/')
 def index():
-  return redirect('/lists/1')
+  lists = TodoList.query.order_by(TodoList.id).all()
+  print(f'\n\n\n lists: {lists}')
+  if lists:
+    first_list = lists[0].id
+    return redirect(f'/lists/{first_list}')
+  else:
+    return render_template('index.html', todos=None, lists=None, active_list_name=None, active_list_id = None)
